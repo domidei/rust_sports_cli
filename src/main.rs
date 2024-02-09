@@ -8,10 +8,8 @@ use ratatui::{
     prelude::{CrosstermBackend, Terminal, Frame},
     widgets::Paragraph,
 };
-use ratatui::widgets::{Block, Borders, List, ListDirection};
-
+use ratatui::widgets::{Block, Borders};
 use chrono::{DateTime, Duration, Utc};
-use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Serialize};
 
 fn startup() -> Result<()> {
@@ -53,7 +51,7 @@ fn ui(app: &App, f: &mut Frame) {
         text.push_str("today: t");
         text.push_str("quit: q");
 
-        if !(app.day > Utc::now()) {
+        if app.day <= Utc::now() {
             f.render_widget(Paragraph::new(text).block(Block::default().title(format!("NBA Game results of: {}", date)).borders(Borders::ALL)), f.size());
         } else {
             f.render_widget(Paragraph::new("").block(Block::default().title(format!("{} is in the future.", date)).borders(Borders::ALL)), f.size());
@@ -183,7 +181,7 @@ fn get_nba_data(date_time: DateTime<Utc>) -> Option<GameData> {
 }
 
 fn parse_json(json_data: String) -> GameData {
-    let result: Result<GameData, serde_json::Error> = serde_json::from_str(&*json_data);
+    let result: Result<GameData, serde_json::Error> = serde_json::from_str(&json_data);
 
     match result {
         Ok(game_data) => {
