@@ -48,7 +48,7 @@ fn ui(app: &App, f: &mut Frame) {
         text.push_str("\nNavigation:\n");
         text.push_str("one day: j|k\n");
         text.push_str("one week: h|l\n");
-        text.push_str("today: t");
+        text.push_str("today: t\n");
         text.push_str("quit: q");
 
         if app.day <= Utc::now() {
