@@ -51,7 +51,13 @@ fn ui(app: &App, f: &mut Frame) {
         text.push_str("one day: j|k\n");
         text.push_str("one week: h|l\n");
         text.push_str("today: t");
-        f.render_widget(Paragraph::new(text).block(Block::default().title(format!("NBA Game results of: {}", date)).borders(Borders::ALL)), f.size());
+        text.push_str("quit: q");
+
+        if !(app.day > Utc::now()) {
+            f.render_widget(Paragraph::new(text).block(Block::default().title(format!("NBA Game results of: {}", date)).borders(Borders::ALL)), f.size());
+        } else {
+            f.render_widget(Paragraph::new("").block(Block::default().title(format!("{} is in the future.", date)).borders(Borders::ALL)), f.size());
+        }
     }
 }
 
@@ -61,9 +67,9 @@ fn update(app: &mut App) -> Result<()> {
         if let Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
                 match key.code {
+                    Char('h') => app.day += Duration::days(7),
                     Char('j') => app.day += Duration::days(1),
                     Char('k') => app.day -= Duration::days(1),
-                    Char('h') => app.day -= Duration::days(7),
                     Char('l') => app.day -= Duration::days(7),
                     Char('t') => app.day = Utc::now(),
                     Char('q') => app.should_quit = true,
@@ -81,7 +87,7 @@ fn run() -> Result<()> {
     let mut t = Terminal::new(CrosstermBackend::new(std::io::stderr()))?;
 
     // application state
-    let mut app = App { day: Utc::now(), should_quit: false, game_data: get_nba_data(Utc::now()-Duration::days(1)) };
+    let mut app = App { day: Utc::now(), should_quit: false, game_data: get_nba_data(Utc::now() - Duration::days(1)) };
 
     loop {
         // application update
@@ -186,13 +192,5 @@ fn parse_json(json_data: String) -> GameData {
         Err(e) => {
             panic!("Error parsing JSON: {:?}", e)
         }
-    }
-}
-
-fn print_game_data(game_data: &GameData) {
-    for game in &game_data.data {
-        let line = format!("{} {}:{} {}", game.home_team.abbreviation, game.home_team_score, game.visitor_team_score, game.visitor_team.abbreviation);
-
-        println!("{}", line);
     }
 }
