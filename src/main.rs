@@ -1,15 +1,15 @@
 use anyhow::Result;
+use chrono::{DateTime, Duration, Utc};
 use crossterm::{
     event::{self, Event::Key, KeyCode::Char},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use ratatui::widgets::{Block, Borders};
 use ratatui::{
-    prelude::{CrosstermBackend, Terminal, Frame},
+    prelude::{CrosstermBackend, Frame, Terminal},
     widgets::Paragraph,
 };
-use ratatui::widgets::{Block, Borders};
-use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
 fn startup() -> Result<()> {
@@ -35,28 +35,45 @@ struct App {
 fn ui(app: &App, f: &mut Frame) {
     let date = app.day.format("%Y-%m-%d").to_string();
 
-    if app.game_data.is_some() {
-        let game_data = &app.game_data.as_ref().unwrap().data;
+    if let Some(data) = &app.game_data {
+        let game_data = &data.data;
+        let mut text = game_data
+            .iter()
+            .map(|game| game.get_display_line())
+            .collect::<Vec<String>>()
+            .join("");
 
-        let mut text = String::new();
-
-        for game in game_data {
-            let line = format!("{} {}:{} {}\n", game.home_team.abbreviation, game.home_team_score, game.visitor_team_score, game.visitor_team.abbreviation);
-            text.push_str(&line);
-        }
-
-        text.push_str("\nNavigation:\n");
-        text.push_str("one day: j|k\n");
-        text.push_str("one week: h|l\n");
-        text.push_str("today: t\n");
-        text.push_str("quit: q");
+        text.push_str(gen_navigation_paragraph());
 
         if app.day <= Utc::now() {
-            f.render_widget(Paragraph::new(text).block(Block::default().title(format!("NBA Game results of: {}", date)).borders(Borders::ALL)), f.size());
+            f.render_widget(
+                Paragraph::new(text).block(
+                    Block::default()
+                        .title(format!("NBA Game results of: {}", date))
+                        .borders(Borders::ALL),
+                ),
+                f.size(),
+            )
         } else {
-            f.render_widget(Paragraph::new("").block(Block::default().title(format!("{} is in the future.", date)).borders(Borders::ALL)), f.size());
+            f.render_widget(
+                Paragraph::new("").block(
+                    Block::default()
+                        .title(format!("{} is in the future.", date))
+                        .borders(Borders::ALL),
+                ),
+                f.size(),
+            );
         }
     }
+}
+
+fn gen_navigation_paragraph() -> &'static str {
+    "\n\
+    Navigation:\n\
+    one day: j|k\n\
+    one week: h|l\n\
+    today: t\n\
+    quit: q"
 }
 
 // App update function
@@ -85,7 +102,11 @@ fn run() -> Result<()> {
     let mut t = Terminal::new(CrosstermBackend::new(std::io::stderr()))?;
 
     // application state
-    let mut app = App { day: Utc::now(), should_quit: false, game_data: get_nba_data(Utc::now() - Duration::days(1)) };
+    let mut app = App {
+        day: Utc::now(),
+        should_quit: false,
+        game_data: get_nba_data(Utc::now() - Duration::days(1)),
+    };
 
     loop {
         // application update
@@ -145,6 +166,18 @@ struct Game {
     visitor_team_score: u32,
 }
 
+impl Game {
+    pub fn get_display_line(&self) -> String {
+        format!(
+            "{} {}:{} {}\n",
+            self.home_team.abbreviation,
+            self.home_team_score,
+            self.visitor_team_score,
+            self.visitor_team.abbreviation
+        )
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct Meta {
     current_page: u32,
@@ -158,7 +191,6 @@ struct GameData {
     meta: Meta,
 }
 
-
 fn get_nba_data(date_time: DateTime<Utc>) -> Option<GameData> {
     let client = reqwest::blocking::Client::new();
 
@@ -168,9 +200,11 @@ fn get_nba_data(date_time: DateTime<Utc>) -> Option<GameData> {
 
     // Build the request with the query parameters
     let response = client
-        .get(format!("{}{}", "https://www.balldontlie.io/api/v1/games/", query))
+        .get(format!(
+            "{}{}",
+            "https://www.balldontlie.io/api/v1/games/", query
+        ))
         .send();
-
 
     // Parse the response body as JSON, String, etc.
     let json_response = response.expect("Could not read data").text().ok()?;
@@ -183,12 +217,5 @@ fn get_nba_data(date_time: DateTime<Utc>) -> Option<GameData> {
 fn parse_json(json_data: String) -> GameData {
     let result: Result<GameData, serde_json::Error> = serde_json::from_str(&json_data);
 
-    match result {
-        Ok(game_data) => {
-            game_data
-        }
-        Err(e) => {
-            panic!("Error parsing JSON: {:?}", e)
-        }
-    }
+    result.unwrap_or_else(|e| panic!("Error parsing JSON: {:?}", e))
 }
